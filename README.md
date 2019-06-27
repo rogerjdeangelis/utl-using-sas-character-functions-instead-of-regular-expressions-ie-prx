@@ -43,7 +43,56 @@ Using sas character functions instead of regular expressions ie prx
                                                                                                                               
        3. Distinct Count of 'booboo' in 'boobooboobooboo' should be 2                                                         
           cnt=countc(prxchange('s/([booboo]){6}/*/',-1,'boobooboobooboo'),'*') ;                                              
-                                                                                                                              
+         
+             
+     Usefull insights by                                                                                             
+                                                                                                                    
+    Paul Dorfman                                                                                                    
+    sashole@bellsouth.net                                                                                           
+                                                                                                                    
+    Roger,                                                                                                          
+                                                                                                                    
+    I agree that using SAS functions is simpler and infinitely more readable than the regexen.                      
+                                                                                                                    
+    However, using expression:                                                                                      
+                                                                                                                    
+    countc (tranwrd (str, 'ABC', '@'), '@')                                                                         
+                                                                                                                    
+    works only if STR is guaranteed to contain no  @'s. Using, say, "00"x instead appears to be safer;              
+    but it still means making assumptions about data. Moreover, it will produce incorrect results if STR            
+    should contain a word where ABC repeats, such as XABCYABCZ. The latter cannot be rectified by using:            
+                                                                                                                    
+    countc (tranwrd (str, ' ABC ', '@'), '@')                                                                       
+                                                                                                                    
+    because it will fail if STR contains " ABC ABC " or " ABC ABC ABC " and so forth, from which TRANWRD            
+    will not remove the last remaining " ABC " due to the                                                           
+    overlapping of the trailing and leading blanks. In other words,                                                 
+                                                                                                                    
+    tranwrd ("Start ABC ABC ABC End", " ABC ", "") = "Start ABC End "                                               
+                                                                                                                    
+    while we need the result to be "Start End".                                                                     
+                                                                                                                    
+    So, what's the solution? Apparently, we need to TRANWRD " ABC " into "" via a series of nested calls            
+    until no " ABC " remains in the string. How many nested calls do we need? Since STR can be no longer            
+    than 32767, in the extreme case of STR = "ABC ABC ... ABC ABC", it contains 8192 "ABC"s and 8191                
+    blanks between each "ABC" pair. Thus, we would need log2(8192)=13 nested TRANWRD call                           
+    s to reduce STR to "ABC ABC" and the ultimate nested call TRANWRD(<nested call result>,"ABC ABC")               
+    to get the final required blank. Yet, it still doesn't cut it, since instead of "ABC ABC ... ABC ABC"           
+    we could potentially have "A A ... A A" if the specs call for counting "A"s rather than "ABC"s.                 
+    In this case, we would have to have log2(16384)=14 nested calls followed by the final ne                        
+    sted TRANWRD (<nested call result>,"A A").                                                                      
+                                                                                                                    
+    In other words, the general solution is:                                                                        
+                                                                                                                    
+    countw (str) -                                                                                                  
+    countw (tranwrd (tranwrd (tranwrd (tranwrd (str, " ABC "), " ABC "), " ABC ") ... )))))))))))))), "ABC ABC"))   
+                                                                                                                    
+    Looks pretty, ain't it? Of course, to reduce the pain, the nested " ABC " calls can be macroized.               
+    But I reckon it's simpler just to FCMP a DO loop with SCAN counting the occurrences of "ABC"                    
+    delimited by blanks and use the resulting function thereafter.                                                  
+                                                                                                                    
+
+         
     *_                   _                                                                                                    
     (_)_ __  _ __  _   _| |_                                                                                                  
     | | '_ \| '_ \| | | | __|                                                                                                 
